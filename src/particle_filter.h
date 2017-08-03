@@ -36,7 +36,7 @@ class ParticleFilter {
 	bool is_initialized;
 	
 	// Vector of weights of all particles
-	std::vector<double> weights;
+	//std::vector<double> weights;
 	
 public:
 	
@@ -49,6 +49,9 @@ public:
 
 	// Destructor
 	~ParticleFilter() {}
+
+	// debug output
+	void printParticles(char step);
 
 	/**
 	 * init Initializes particle filter by initializing particles to Gaussian
