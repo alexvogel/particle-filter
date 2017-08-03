@@ -53,6 +53,12 @@ public:
 	// debug output
 	void printParticles(char step);
 
+	// tranform landmark coordinates from map system to vehicle system
+	void transformLandmarkMap2Vehicle(double vehicle_x, double vehicle_y, double vehicle_theta, double lm_map_x, double lm_map_y, double& lm_veh_x, double& lm_veh_y );
+
+	// tranform landmark coordinates from vehicle system to map system
+	void transformLandmarkVehicle2Map(double vehicle_x, double vehicle_y, double vehicle_theta, double& lm_map_x, double& lm_map_y, double lm_veh_x, double lm_veh_y );
+
 	/**
 	 * init Initializes particle filter by initializing particles to Gaussian
 	 *   distribution around first position and all the weights to 1.
@@ -81,7 +87,7 @@ public:
 	 * @param predicted Vector of predicted landmark observations
 	 * @param observations Vector of landmark observations
 	 */
-	void dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations);
+	void dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations, int id_particle);
 	
 	/**
 	 * updateWeights Updates the weights for each particle based on the likelihood of the 

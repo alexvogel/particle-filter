@@ -24,7 +24,54 @@ void ParticleFilter::printParticles(char step){
 	for(int i = 0; i < num_particles; i++)
 	{
 		std::cout << step << ": particle " << particles[i].id << ", (" << particles[i].x << ", " << particles[i].y << ", " << particles[i].theta << "), w=" << particles[i].weight << std::endl;
+		for(int j = 0; j < particles[i].associations.size(); j++)
+		{
+			std::cout << particles[i].associations[j] << " ";
+		}
+		std::cout << std::endl;
 	}
+}
+
+void ParticleFilter::transformLandmarkMap2Vehicle(double vehicle_x, double vehicle_y, double vehicle_theta, double lm_map_x, double lm_map_y, double & lm_veh_x, double & lm_veh_y ){
+	// transforms a landmark from map coordinates to vehicle coordinates
+	// Inputs:
+	// vehicle_x: vehicle x-coordinate in map coordinate system
+	// vehicle_y: vehicle y-coordinate in map coordinate system
+	// vehicle_theta: vehicle heading, angle in radians counterclockwise from x-axis of map coordinate system
+	// lm_map_x: landmark x-coordinate in map coordinate system
+	// lm_map_y: landmark x-coordinate in map coordinate system
+	// lm_veh_x: landmark x-coordinate in vehicle coordinate system. this value gets overidden
+	// lm_veh_y: landmark x-coordinate in vehicle coordinate system. this value gets overidden
+
+	// setting transformation parameter
+	double trans_x = -1 * vehicle_x;
+	double trans_y = -1 * vehicle_y;
+	double trans_angle = -1 * vehicle_theta;
+
+	// set transformed x, y
+	lm_veh_x = (lm_map_x + trans_x) * cos(trans_angle) - (lm_map_y + trans_y) * sin(trans_angle);
+	lm_veh_y = (lm_map_x + trans_x) * sin(trans_angle) + (lm_map_y + trans_y) * cos(trans_angle);
+}
+
+void ParticleFilter::transformLandmarkVehicle2Map(double vehicle_x, double vehicle_y, double vehicle_theta, double & lm_map_x, double & lm_map_y, double lm_veh_x, double lm_veh_y ){
+	// transforms a landmark from map coordinates to vehicle coordinates
+	// Inputs:
+	// vehicle_x: vehicle x-coordinate in map coordinate system
+	// vehicle_y: vehicle y-coordinate in map coordinate system
+	// vehicle_theta: vehicle heading, angle in radians counterclockwise from x-axis of map coordinate system
+	// lm_map_x: landmark x-coordinate in map coordinate system. this value gets overidden
+	// lm_map_y: landmark x-coordinate in map coordinate system. this value gets overidden
+	// lm_veh_x: landmark x-coordinate in vehicle coordinate system. 
+	// lm_veh_y: landmark x-coordinate in vehicle coordinate system.
+
+	// setting transformation parameter
+	double trans_x = vehicle_x;
+	double trans_y = vehicle_y;
+	double trans_angle = vehicle_theta;
+
+	// set transformed x, y
+	lm_map_x = lm_veh_x * cos(trans_angle) - lm_veh_y * sin(trans_angle) + trans_x;
+	lm_map_y = lm_veh_x * sin(trans_angle) + lm_veh_y * cos(trans_angle) + trans_y;
 }
 
 
@@ -34,7 +81,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 	std::cout << "- calling init" << std::endl;
-	num_particles = 20;
+	num_particles = 10;
 
 	// create random engine	
 	default_random_engine gen;
@@ -160,7 +207,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 //	exit(1);
 }
 
-void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {
+void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations, int id_particle ) {
 	// TODO: Find the predicted measurement that is closest to each observed measurement and assign the 
 	//   observed measurement to this particular landmark.
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
@@ -169,9 +216,15 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 	// debug
 	//std::cout << "- calling dataAssociation: " << observations.size() << " observations " << predicted.size() << " predictions" << std::endl;
 
+	// create vectors for setting the associations
+	vector<int> associations;
+	vector<double> sense_x;
+	vector<double> sense_y;
+		
 	// for every observed measurement
 	for(int i = 0; i < observations.size(); i++)
 	{
+
 		// find the nearest predicted measurement
 		int nr_nearest_predicted_measurement;
 		double smallest_distance = 99999999.;
@@ -194,11 +247,33 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 		// assign the nearest predicted measurement to the observed measurement
 		observations[i].id = nr_nearest_predicted_measurement;
 		
+		// set association data in particle
+		associations.push_back(nr_nearest_predicted_measurement);
+
+		// transform landmark coordinates from vehicle coordinate system to map coordinate system
+		double lm_map_x;
+		double lm_map_y;		
+		transformLandmarkVehicle2Map(particles[id_particle].x,
+						particles[id_particle].y,
+						particles[id_particle].theta,
+						lm_map_x,
+						lm_map_y,
+						nearest_prediction.x,
+						nearest_prediction.y);
+
+		// set sense data in particle
+		sense_x.push_back(lm_map_x);
+		sense_y.push_back(lm_map_y);
+
 		//std::cout << "nearest distance " << smallest_distance << std::endl;
 		//std::cout << "observation (" << observations[i].x << ", " << observations[i].y << ")" << std::endl;
 		//std::cout << "prediction (" << nearest_prediction.x << ", " << nearest_prediction.y << ")" << std::endl;
 
 	}
+
+	// association in the particles
+	//particles[id_particle] = SetAssociations(particles[id_particle], associations, sense_x, sense_y);
+
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -229,9 +304,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		// reserve memory for all landmarks
 		predicted.reserve(map_landmarks.landmark_list.size());
 
-		double trans_x = -1 * particles[i].x;
-		double trans_y = -1 * particles[i].y;
-		double trans_angle = -1 * particles[i].theta;
+		//double trans_x = -1 * particles[i].x;
+		//double trans_y = -1 * particles[i].y;
+		//double trans_angle = -1 * particles[i].theta;
 
 		// for every map landmark calculate the coordinates in particle coordinate system
 		for(int j = 0; j < map_landmarks.landmark_list.size(); j++)
@@ -242,12 +317,20 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			predictedLandmark.id = map_landmarks.landmark_list[j].id_i;
 
 			// transform x, y
-			double x_map_lm = map_landmarks.landmark_list[j].x_f;
-			double y_map_lm = map_landmarks.landmark_list[j].y_f;
+			//double x_map_lm = map_landmarks.landmark_list[j].x_f;
+			//double y_map_lm = map_landmarks.landmark_list[j].y_f;
 
 			// set transformed x, y
-			predictedLandmark.x = (x_map_lm + trans_x) * cos(trans_angle) - (y_map_lm + trans_y) * sin(trans_angle);
-			predictedLandmark.y = (x_map_lm + trans_x) * sin(trans_angle) + (y_map_lm + trans_y) * cos(trans_angle);
+			//predictedLandmark.x = (x_map_lm + trans_x) * cos(trans_angle) - (y_map_lm + trans_y) * sin(trans_angle);
+			//predictedLandmark.y = (x_map_lm + trans_x) * sin(trans_angle) + (y_map_lm + trans_y) * cos(trans_angle);
+
+			transformLandmarkMap2Vehicle(particles[i].x,
+							particles[i].y, 
+							particles[i].theta,
+							map_landmarks.landmark_list[j].x_f,
+							map_landmarks.landmark_list[j].y_f,
+							predictedLandmark.x,
+							predictedLandmark.y );
 
 			// add to predicted landmarks if distance < sensor_range
 			double distance_predicted_landmark = dist(0., 0., predictedLandmark.x, predictedLandmark.y);
@@ -264,7 +347,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
 		// associate observed and predicted landmarks (both in vehicle coordinate system)
 		// the landmark id in the observations will be set to the nearest map landmark id
-		ParticleFilter::dataAssociation(predicted, observations);
+		ParticleFilter::dataAssociation(predicted, observations, i);
 		
 		// every observation landmark is now associated with the nearest predicted landmark
 
@@ -278,18 +361,6 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		// variances for Multivariate-Gaussian Probability
 		double var_x = std_landmark[0] * std_landmark[0];
 		double var_y = std_landmark[1] * std_landmark[1];
-
-		//// prevent division by zero
-		//if(var_x < 0.001)
-		//{
-		//	var_x = 0.001;
-		//	std::cout << "prevented division by zero for var_x" << std::endl;
-		//}
-		//if(var_y < 0.001)
-		//{
-		//	var_y = 0.001;
-		//	std::cout << "prevented division by zero for var_y" << std::endl;
-		//}
 
 		for(int i = 0; i < observations.size(); i++)
 		{
@@ -339,7 +410,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	{
 		sum_weights += weights[i];
 	}
-	std::cout << "sum of weights (from weight vector) BEFORE normalizing: " << sum_weights << std::endl;
+
+	// debug	
+	//std::cout << "sum of weights (from weight vector) BEFORE normalizing: " << sum_weights << std::endl;
 
 	// normalize weights and update in particles
 	for(int i = 0; i < num_particles; i++)
@@ -349,28 +422,28 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	}
 
 	// debug
-	double sum_weights2 = 0;
-	for(int i = 0; i < num_particles; i++)
-	{
-		sum_weights2 += weights[i];
-	}
-	std::cout << "sum of weights (from weight vector) AFTER normalizing: " << sum_weights2 << std::endl;
-	double sum_weights3 = 0;
-	for(int i = 0; i < num_particles; i++)
-	{
-		sum_weights3 += particles[i].weight;
-	}
-	std::cout << "sum of weights (from particles) AFTER normalizing: " << sum_weights3 << std::endl;
-	if( (sum_weights2 < 0.99) || (sum_weights2 > 1.01) || isnan(sum_weights2))
-	{
-		std::cout << "ERROR IN NORMALIZING" << std::endl;
-		exit(1);
-	}
-	if( (sum_weights3 < 0.99) || (sum_weights3 > 1.01) || isnan(sum_weights3) )
-	{
-		std::cout << "ERROR IN NORMALIZING" << std::endl;
-		exit(1);
-	}
+	//double sum_weights2 = 0;
+	//for(int i = 0; i < num_particles; i++)
+	//{
+	//	sum_weights2 += weights[i];
+	//}
+	//std::cout << "sum of weights (from weight vector) AFTER normalizing: " << sum_weights2 << std::endl;
+	//double sum_weights3 = 0;
+	//for(int i = 0; i < num_particles; i++)
+	//{
+	//	sum_weights3 += particles[i].weight;
+	//}
+	//std::cout << "sum of weights (from particles) AFTER normalizing: " << sum_weights3 << std::endl;
+	//if( (sum_weights2 < 0.99) || (sum_weights2 > 1.01) || isnan(sum_weights2))
+	//{
+	//	std::cout << "ERROR IN NORMALIZING" << std::endl;
+	//	exit(1);
+	//}
+	//if( (sum_weights3 < 0.99) || (sum_weights3 > 1.01) || isnan(sum_weights3) )
+	//{
+	//	std::cout << "ERROR IN NORMALIZING" << std::endl;
+	//	exit(1);
+	//}
 
 	// debug
 	printParticles('W');
@@ -452,7 +525,8 @@ void ParticleFilter::resample() {
 
 	// replace the old particles with new one
 	particles = newParticles;
-
+	
+	// debug
 	printParticles('R');
 }
 
