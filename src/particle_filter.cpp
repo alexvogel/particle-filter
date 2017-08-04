@@ -312,6 +312,13 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	vector<double> weights;
 	weights.reserve(num_particles);
 
+	// normalizer for Multivariate-Gaussian Probability
+	double norm = 1 / ( 2 * M_PI * std_landmark[0] * std_landmark[1]);
+
+	// variances for Multivariate-Gaussian Probability
+	double var_x = std_landmark[0] * std_landmark[0];
+	double var_y = std_landmark[1] * std_landmark[1];
+
 	// for each particle
 	for(int i = 0; i < num_particles; i++)
 	{
@@ -367,13 +374,6 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		// for every landmark association the probabilty of actual observation is calculated
 		vector<double> probabilities_landmark_observation;
 		probabilities_landmark_observation.reserve(observations.size());
-
-		// normalizer for Multivariate-Gaussian Probability
-		double norm = 1 / ( 2 * M_PI * std_landmark[0] * std_landmark[1]);
-
-		// variances for Multivariate-Gaussian Probability
-		double var_x = std_landmark[0] * std_landmark[0];
-		double var_y = std_landmark[1] * std_landmark[1];
 
 		for(int i = 0; i < observations.size(); i++)
 		{
